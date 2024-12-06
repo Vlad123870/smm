@@ -110,7 +110,7 @@ AppDataSource.initialize().then(async () => {
                             ],
                             [
                                 {
-                                    text: 'Не публиковать',
+                                    text: 'Не публиковать или опубликовать вручную',
                                     callback_data: 'do-not-publish'
                                 }
                             ]
