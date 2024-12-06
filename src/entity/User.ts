@@ -33,6 +33,11 @@ export class User {
     waitingForEdit: boolean;
 
     @Column({
+        default: false
+    })
+    waitingForConcurent:boolean;
+
+    @Column({
         default: ''
     })
     lastPost: string;

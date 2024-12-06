@@ -1,7 +1,10 @@
 version: '3'
 services:
-
-  postgres:
+  bot:
+    restart: always
+    build: .
+    env_file: ./.env
+  db:
     image: "postgres:14.5"
     ports:
       - "5432:5432"

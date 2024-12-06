@@ -38,7 +38,7 @@ AppDataSource.initialize().then(async () => {
                     messages: [
                         {
                             role: 'system',
-                            content: 'Ты - профессиональный создатель постов. Твоя задача - сгенерировать пост на основе предоставленных данных. В ответе дай ТОЛЬКО ПОСТ',
+                            content: 'Ты - профессиональный создатель постов. Твоя задача - сгенерировать информативный пост на основе предоставленных данных. Пост должен быть на тему авиация. Если нет - не генерируй пост. В ответе дай ТОЛЬКО ПОСТ. Отвечай текстом, не в формате Markdown.',
                         },
                         {
                             role: 'user',
@@ -80,7 +80,7 @@ AppDataSource.initialize().then(async () => {
                     messages: [
                         {
                             role: 'system',
-                            content: 'Ты - профессиональный создатель постов. Твоя задача - откорректировать пост на основе предоставленных данных. В ответе дай ТОЛЬКО ПОСТ. Оригинальный пост: ' + user.lastPost,
+                            content: 'Ты - профессиональный создатель постов. Твоя задача - откорректировать информативный пост на основе предоставленных данных. Учитывай последние тренды в развитии авиации. Твоя задача - сгенерировать информативный пост на основе предоставленных данных. Пост должен быть на тему авиация. Если нет - не генерируй пост. В ответе дай ТОЛЬКО ПОСТ. Отвечай текстом, не в формате Markdown. Оригинальный пост: ' + user.lastPost,
                         },
                         {
                             role: 'user',
@@ -117,8 +117,26 @@ AppDataSource.initialize().then(async () => {
                         ]
                     }
                 });
+            } else if (user.waitingForConcurent) {
+                user.waitingForConcurent = false;
+                const result = await openai.chat.completions.create({
+                    messages: [
+                        {
+                            role: 'system',
+                            content: 'Проанализируй данный тебе пост. Отвечай текстом, НЕ В ФОРМАТЕ Markdown!',
+                        },
+                        {
+                            role: 'user',
+                            content: msg.text!
+                        }
+                    ],
+                    model: 'gpt-4o-mini'
+                });
+                await manager.save(user);
+                
+                await bot.sendMessage(msg.from!.id, result.choices[0].message.content!);
             }
-        }
+        } 
     });
 
     bot.onText(/\/start/, async msg => {
@@ -146,6 +164,17 @@ AppDataSource.initialize().then(async () => {
         user.waitingForData = true;
         await manager.save(user);
         await bot.sendMessage(msg.from!.id, 'Пришли мне все данные о посте, и я его сгенерирую.');
+    });
+
+    bot.onText(/\/concurent/, async msg => {
+        const user = await manager.findOneBy(User, {
+            id: String(msg.from!.id)
+        });
+        if (!user) return;
+
+        user.waitingForConcurent = true;
+        await manager.save(user);
+        await bot.sendMessage(msg.from!.id, 'Пришли мне пост конкурента, и я его проанализирую.');
     })
 
     bot.on('callback_query', async q => {
@@ -170,11 +199,12 @@ AppDataSource.initialize().then(async () => {
             user.waitingForEdit = false;
             user.lastPost = '';
             await manager.save(user);
+            await bot.sendMessage(q.from.id, 'Пост не опубликован.')
         }
     })
     
 
-    cron.schedule('*/5 * * * * *', async () => {
+    cron.schedule('0 0 12 * * *', async () => {
         const publications = await manager.find(Publication, {
             relations: {
                 user: true
@@ -184,6 +214,7 @@ AppDataSource.initialize().then(async () => {
         for (const p of publications) {
             try {
                 await bot.sendMessage(+p.user.channelId, p.text);
+                await bot.sendMessage(+p.user.id, 'Посты опубликованы')
             } catch (error) {
                 console.log(error);
                 await bot.sendMessage(+p.user.id, 'Не удалось опубликовать пост');
@@ -197,7 +228,7 @@ AppDataSource.initialize().then(async () => {
         const r = (await openai.chat.completions.create({
             messages: [
                 {
-                    content: 'Какие последние тренды в Авиации?',
+                    content: 'Какие последние тренды в Авиации? Отвечай текстом, не в формате Markdown.',
                     role: 'user'
                 }
             ],
@@ -218,6 +249,10 @@ AppDataSource.initialize().then(async () => {
         {
             command: 'trends',
             description: 'Тренды в сфере Авиации'
+        },
+        {
+            command: 'concurent',
+            description: 'Анализ постов конкурентов'
         }
     ])
 
