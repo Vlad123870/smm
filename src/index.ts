@@ -204,7 +204,7 @@ AppDataSource.initialize().then(async () => {
     })
     
 
-    cron.schedule('0 0 12 * * *', async () => {
+    cron.schedule('*/1 * * * *', async () => {
         const publications = await manager.find(Publication, {
             relations: {
                 user: true
