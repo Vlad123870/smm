@@ -17,7 +17,7 @@ const openai = new OpenAI({
     apiKey: process.env.OPENAI_KEY ?? ''
 });
 const manager = AppDataSource.manager;
-const themes = fs.readdirSync(path.join(process.cwd(), 'themes.txt'));
+const themes = fs.readFileSync(path.join(process.cwd(), 'themes.txt'));
 
 AppDataSource.initialize().then(async () => {
     bot.onText(/./, async msg => {
