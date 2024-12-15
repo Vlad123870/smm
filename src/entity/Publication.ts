@@ -10,9 +10,6 @@ export class Publication {
     @Column()
     text: string;
 
-    @Column()
-    time: '10' | '12' | '13' | '14';
-
     @ManyToOne(() => User, (user) => user.publications)
     user: User;
     

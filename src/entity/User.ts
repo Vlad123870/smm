@@ -35,12 +35,19 @@ export class User {
     @Column({
         default: false
     })
-    waitingForConcurent:boolean;
+    waitingForConcurent: boolean;
+
+    @Column({
+        default: false
+    })
+    waitingForTime: boolean;
 
     @Column({
         default: ''
     })
     lastPost: string;
+
+
 
     @OneToMany(() => Publication, (publication) => publication.user)
     publications: Publication[];

@@ -5,9 +5,10 @@ import { AppDataSource } from "./data-source"
 import Bot from 'node-telegram-bot-api';
 import { User } from "./entity/User";
 import { Publication } from "./entity/Publication";
-import cron from 'node-cron';
+import schedule from 'node-schedule';
 import fs from 'fs';
 import path from "path";
+import dayjs from "dayjs";
 
 const bot = new Bot(process.env.TG_TOKEN ?? '', {
     polling: true
@@ -19,28 +20,7 @@ const openai = new OpenAI({
 const manager = AppDataSource.manager;
 const themes = fs.readFileSync(path.join(process.cwd(), 'themes.txt'));
 
-const publish = async (time: '10' | '12' | '13' | '14') => {
-    const publications = await manager.find(Publication, {
-        relations: {
-            user: true
-        },
-        where: {
-            time: time
-        }
-    });
 
-    for (const p of publications) {
-        try {
-            await bot.sendMessage(+p.user.channelId, p.text);
-            await bot.sendMessage(+p.user.id, 'Посты опубликованы')
-        } catch (error) {
-            console.log(error);
-            await bot.sendMessage(+p.user.id, 'Не удалось опубликовать пост');
-        } finally {
-            await manager.delete(Publication, p.id);
-        }
-    }
-}
 
 AppDataSource.initialize().then(async () => {
     bot.onText(/./, async msg => {
@@ -161,6 +141,34 @@ AppDataSource.initialize().then(async () => {
                 await manager.save(user);
                 
                 await bot.sendMessage(msg.from!.id, result.choices[0].message.content!);
+            } else if (user.waitingForTime) {
+                if (!/[^[0-9]{2}\:[0-9]{2}$]/.test(msg.text!)) {
+                    await bot.sendMessage(msg.from!.id, 'Пoжалуста, укажите время в формате ЧЧ:ММ')
+                    return;
+                }
+
+                user.waitingForTime = false;
+                const pub = new Publication();
+                pub.text = user.lastPost;
+                pub.user = user;
+                user.lastPost = '';
+                await manager.save(user);
+                await manager.save(pub);
+                
+                const d = dayjs();
+                d.set('day', d.get('day') + 1);
+                d.set('hour', +(msg.text?.substring(0, 2)!));
+                d.set('minute', +(msg.text?.substring(3, 5)!));
+                
+                schedule.scheduleJob(d.toDate(), async () => {
+                    try {
+                        await bot.sendMessage(user.channelId, pub.text);
+                        await bot.sendMessage(msg.from!.id, 'Пост опубликован')
+                    } catch (error) {
+                        console.log(error);
+                        await bot.sendMessage(msg.from!.id, 'Пост не опубликован')
+                    }
+                })
             }
         } 
     });
@@ -209,36 +217,9 @@ AppDataSource.initialize().then(async () => {
         });
         if (!user) return;
         if (q.data == 'publish') {
-            await bot.sendMessage(q.from.id, 'Когда вы хотите опубликовать пост?', {
-                reply_markup: {
-                    inline_keyboard: [
-                        [
-                            {
-                                text: '10:00 МСК',
-                                callback_data: 'pub-10'
-                            }
-                        ],
-                        [
-                            {
-                                text: '12:00 МСК',
-                                callback_data: 'pub-12'
-                            }
-                        ],
-                        [
-                            {
-                                text: '13:00 МСК',
-                                callback_data: 'pub-13'
-                            }
-                        ],
-                        [
-                            {
-                                text: '14:00 МСК',
-                                callback_data: 'pub-14'
-                            }
-                        ]
-                    ]
-                }
-            });
+            user.waitingForTime = true;
+            await manager.save(user)
+            await bot.sendMessage(q.from.id, 'Когда вы хотите опубликовать пост? Напишите время в формате ЧЧ:ММ (по МСК)');
         } else if (q.data == 'edit') {
             user.waitingForEdit = true;
             await manager.save(user);
@@ -249,16 +230,6 @@ AppDataSource.initialize().then(async () => {
             user.lastPost = '';
             await manager.save(user);
             await bot.sendMessage(q.from.id, 'Пост не опубликован.')
-        } else if (q.data?.startsWith('pub-')) {
-            const time = q.data.substring(4);
-            const publication = new Publication();
-            publication.text = user.lastPost;
-            publication.user = user;
-            //@ts-ignore
-            publication.time = time;
-            user.lastPost = '';
-            await manager.save(user);
-            await manager.save(publication);
         }
     })
     
@@ -299,20 +270,4 @@ AppDataSource.initialize().then(async () => {
         }
     ])
 
-
-    cron.schedule('7 * * *', async () => {
-        await publish('10');
-    });
-
-    cron.schedule('9 * * *', async () => {
-        await publish('12');
-    });
-
-    cron.schedule('10 * * *', async () => {
-        await publish('13');
-    });
-
-    cron.schedule('11 * * *', async () => {
-        await publish('14');
-    });
 }).catch(error => console.log(error))
