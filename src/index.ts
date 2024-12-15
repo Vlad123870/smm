@@ -19,6 +19,29 @@ const openai = new OpenAI({
 const manager = AppDataSource.manager;
 const themes = fs.readFileSync(path.join(process.cwd(), 'themes.txt'));
 
+const publish = async (time: '10' | '12' | '13' | '14') => {
+    const publications = await manager.find(Publication, {
+        relations: {
+            user: true
+        },
+        where: {
+            time: time
+        }
+    });
+
+    for (const p of publications) {
+        try {
+            await bot.sendMessage(+p.user.channelId, p.text);
+            await bot.sendMessage(+p.user.id, 'Посты опубликованы')
+        } catch (error) {
+            console.log(error);
+            await bot.sendMessage(+p.user.id, 'Не удалось опубликовать пост');
+        } finally {
+            await manager.delete(Publication, p.id);
+        }
+    }
+}
+
 AppDataSource.initialize().then(async () => {
     bot.onText(/./, async msg => {
         if (!msg.text?.startsWith('/')) {
@@ -186,13 +209,36 @@ AppDataSource.initialize().then(async () => {
         });
         if (!user) return;
         if (q.data == 'publish') {
-            const publication = new Publication();
-            publication.text = user.lastPost;
-            publication.user = user;
-            user.lastPost = '';
-            await manager.save(user);
-            await manager.save(publication);
-            await bot.sendMessage(q.from.id, 'Бот опубликует пост в 12:00');
+            await bot.sendMessage(q.from.id, 'Когда вы хотите опубликовать пост?', {
+                reply_markup: {
+                    inline_keyboard: [
+                        [
+                            {
+                                text: '10:00 МСК',
+                                callback_data: 'pub-10'
+                            }
+                        ],
+                        [
+                            {
+                                text: '12:00 МСК',
+                                callback_data: 'pub-12'
+                            }
+                        ],
+                        [
+                            {
+                                text: '13:00 МСК',
+                                callback_data: 'pub-13'
+                            }
+                        ],
+                        [
+                            {
+                                text: '14:00 МСК',
+                                callback_data: 'pub-14'
+                            }
+                        ]
+                    ]
+                }
+            });
         } else if (q.data == 'edit') {
             user.waitingForEdit = true;
             await manager.save(user);
@@ -203,29 +249,23 @@ AppDataSource.initialize().then(async () => {
             user.lastPost = '';
             await manager.save(user);
             await bot.sendMessage(q.from.id, 'Пост не опубликован.')
+        } else if (q.data?.startsWith('pub-')) {
+            const time = q.data.substring(3);
+            const publication = new Publication();
+            publication.text = user.lastPost;
+            publication.user = user;
+            //@ts-ignore
+            publication.time = time;
+            user.lastPost = '';
+            await manager.save(user);
+            await manager.save(publication);
         }
     })
     
 
-    cron.schedule('*/1 * * * *', async () => {
-        const publications = await manager.find(Publication, {
-            relations: {
-                user: true
-            }
-        });
 
-        for (const p of publications) {
-            try {
-                await bot.sendMessage(+p.user.channelId, p.text);
-                await bot.sendMessage(+p.user.id, 'Посты опубликованы')
-            } catch (error) {
-                console.log(error);
-                await bot.sendMessage(+p.user.id, 'Не удалось опубликовать пост');
-            } finally {
-                await manager.delete(Publication, p.id);
-            }
-        }
-    });
+
+
 
     bot.onText(/\/trends/, async msg => {
         const r = (await openai.chat.completions.create({
@@ -259,4 +299,20 @@ AppDataSource.initialize().then(async () => {
         }
     ])
 
+
+    cron.schedule('7 * * *', async () => {
+        await publish('10');
+    });
+
+    cron.schedule('9 * * *', async () => {
+        await publish('12');
+    });
+
+    cron.schedule('10 * * *', async () => {
+        await publish('13');
+    });
+
+    cron.schedule('11 * * *', async () => {
+        await publish('14');
+    });
 }).catch(error => console.log(error))
