@@ -250,7 +250,7 @@ AppDataSource.initialize().then(async () => {
             await manager.save(user);
             await bot.sendMessage(q.from.id, 'Пост не опубликован.')
         } else if (q.data?.startsWith('pub-')) {
-            const time = q.data.substring(3);
+            const time = q.data.substring(4);
             const publication = new Publication();
             publication.text = user.lastPost;
             publication.user = user;
