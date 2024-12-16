@@ -142,7 +142,7 @@ AppDataSource.initialize().then(async () => {
                 
                 await bot.sendMessage(msg.from!.id, result.choices[0].message.content!);
             } else if (user.waitingForTime) {
-                if (!/[^[0-9]{2}\:[0-9]{2}$]/.test(msg.text!)) {
+                if (!/^[0-9]{2}\:[0-9]{2}$/.test(msg.text!)) {
                     await bot.sendMessage(msg.from!.id, 'Пoжалуста, укажите время в формате ЧЧ:ММ')
                     return;
                 }
