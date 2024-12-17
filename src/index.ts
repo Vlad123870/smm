@@ -219,7 +219,7 @@ AppDataSource.initialize().then(async () => {
         if (q.data == 'publish') {
             user.waitingForTime = true;
             await manager.save(user)
-            await bot.sendMessage(q.from.id, 'Когда вы хотите опубликовать пост? Напишите время в формате ЧЧ:ММ (по МСК)');
+            await bot.sendMessage(q.from.id, 'Когда вы хотите опубликовать пост? Напишите время в формате ЧЧ:ММ (по GMT)');
         } else if (q.data == 'edit') {
             user.waitingForEdit = true;
             await manager.save(user);
