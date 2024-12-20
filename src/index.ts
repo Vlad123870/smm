@@ -63,9 +63,17 @@ AppDataSource.initialize().then(async () => {
                     const reactions = await client.invoke(
                         new Api.messages.GetMessagesReactions({
                             id: [msg.id],
+                            peerId: +user.channelId
                         })
                     )
+                    str += msg.text!;
+                    str += "\n";
+                    str += JSON.stringify(reactions);
+                    str += "\n";
                 }
+                const part = await client.getParticipants(+user.channelId)
+                str += "\nучастники" 
+                str += JSON.stringigy(part);
                 
                 const result = await openai.chat.completions.create({
                     messages: [
@@ -79,7 +87,7 @@ AppDataSource.initialize().then(async () => {
                         },
                         {
                             role: 'user',
-                            content: `Примеры предыдущих постов и реакции на них. Все в формате JSON. `
+                            content: `Примеры предыдущих постов и реакции на них, а также профили пользователей. Все в формате JSON. ${str} `
                         }
                     ],
                     model: 'gpt-4o-mini'
