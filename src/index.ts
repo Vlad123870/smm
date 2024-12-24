@@ -11,6 +11,7 @@ import path from "path";
 import dayjs from "dayjs";
 import { StringSession } from "telegram/sessions";
 import { Api, TelegramClient } from "telegram";
+import { ConcurentPost } from "./entity/Concurent";
 
 const session = new StringSession("1AgAOMTQ5LjE1NC4xNjcuNDEBu5RFUoUZzE6ej5NNHFo2hNYuA/86hUG/9Nem715jP8dm/PpYD3V6tYF/oaaiC9bTld7WqTn74e58zmJ2Cds6tAxUc9RvHaTNS7I6kNmLGyXKVp+YlIGZN5kRdIKY4Wg0ZF+5CK29uCbJFmh/0uS4McErjTzD6X4I9zl40wPErOZqV/r1RM6lcqshOhMu1AjOSDHrDRQbv1dQq3YoWbsmMFRzc2UQVRduA2toC2nkWsm9q9QFC/SCjXo31ZFIBIShgseGv1SWktnQ751aE2Z3K1Y4BCfi+qcqTYgzK0ycyxk6c0opj/bcsV6RXFrmEpYT2PZ+j9mpe4wr9rETj7pO8jE=");
 const client = new TelegramClient(session, +process.env.API_ID!, process.env.API_HASH ?? '', {});
@@ -63,7 +64,7 @@ AppDataSource.initialize().then(async () => {
                     const reactions = await client.invoke(
                         new Api.messages.GetMessagesReactions({
                             id: [msg.id],
-                            peerId: +user.channelId
+                            peer: +user.channelId
                         })
                     )
                     str += msg.text!;
@@ -73,7 +74,20 @@ AppDataSource.initialize().then(async () => {
                 }
                 const part = await client.getParticipants(+user.channelId)
                 str += "\nучастники" 
-                str += JSON.stringigy(part);
+                str += JSON.stringify(part);
+
+                const concurents = await manager.find(ConcurentPost, {
+                    where: {
+                        user: user
+                    }
+                });
+                let cString = "";
+
+                for (const c of concurents) {
+                    cString += "Анализ поста конкурента:\n";
+                    cString += c.text;
+                    cString += "\n\n";
+                }
                 
                 const result = await openai.chat.completions.create({
                     messages: [
@@ -88,6 +102,10 @@ AppDataSource.initialize().then(async () => {
                         {
                             role: 'user',
                             content: `Примеры предыдущих постов и реакции на них, а также профили пользователей. Все в формате JSON. ${str} `
+                        },
+                        {
+                            role: 'user',
+                            content: `Анализы постов конкурентов: ${cString}`
                         }
                     ],
                     model: 'gpt-4o-mini'
@@ -168,7 +186,7 @@ AppDataSource.initialize().then(async () => {
                     messages: [
                         {
                             role: 'system',
-                            content: 'Проанализируй данный тебе пост. Отвечай текстом, НЕ В ФОРМАТЕ Markdown!',
+                            content: 'Проанализируй данный тебе пост. Учти как его положительные, так и отрицательные стороны.',
                         },
                         {
                             role: 'user',
@@ -179,7 +197,11 @@ AppDataSource.initialize().then(async () => {
                 });
                 await manager.save(user);
                 
-                await bot.sendMessage(msg.from!.id, result.choices[0].message.content!);
+                const c = new ConcurentPost();
+                c.text = result.choices[0].message.content!;
+                c.user = user;
+                await manager.save(c);
+                await bot.sendMessage(msg.from!.id, 'Пост проанализирован и учтен. Можете дальше генерировать посты.')
             } else if (user.waitingForTime) {
                 if (!/^[0-9]{2}\:[0-9]{2}$/.test(msg.text!)) {
                     await bot.sendMessage(msg.from!.id, 'Пoжалуста, укажите время в формате ЧЧ:ММ')

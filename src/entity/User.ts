@@ -1,5 +1,6 @@
 import { Entity, PrimaryGeneratedColumn, Column, PrimaryColumn, OneToMany } from "typeorm"
 import { Publication } from "./Publication";
+import { ConcurentPost } from "./Concurent";
 
 @Entity()
 export class User { 
@@ -51,5 +52,8 @@ export class User {
 
     @OneToMany(() => Publication, (publication) => publication.user)
     publications: Publication[];
+
+    @OneToMany(() => ConcurentPost, (p) => p.user)
+    concurentPosts: ConcurentPost[];
     
 }
